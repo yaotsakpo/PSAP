@@ -2,3 +2,8 @@ node_modules/
 dist/
 *.log
 .DS_Store
+
+# never commit private strategy / govt-submission content
+docs/government-submissions.md
+*-private*
+government-submissions.md
