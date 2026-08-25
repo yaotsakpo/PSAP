@@ -1,0 +1,17 @@
+{
+  "name": "psap",
+  "version": "0.1.0",
+  "description": "Predicate-Scoped Authority Protocol: provable authority resolution between mutually-untrusted agents. Originated as the Inbin Context Protocol (inbin.dev).",
+  "type": "module",
+  "license": "Apache-2.0",
+  "scripts": {
+    "demo": "tsx examples/commander-under-attack.ts",
+    "test": "vitest run"
+  },
+  "keywords": ["zero-trust", "multi-agent", "authority", "provenance", "ai-agents", "security", "formal-methods"],
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
