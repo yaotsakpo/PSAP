@@ -419,3 +419,134 @@ describe("T1-T4: the supporting cases", () => {
     expect(view?.assertionId).toBe(tokyo.assertionId);
   });
 });
+
+// ------------------------------------------------------- revocation + modes
+
+/**
+ * Section 6.3's third falsification gate, as its own acceptance tests:
+ * the paper's Table 1 (Section 8.1) claims "a re-evaluated read demotes"
+ * as one of five behaviours this composition supplies. Until now that
+ * claim was exercised only by examples/commander-under-attack.ts's
+ * Gate 3, not by this suite. These three tests reuse that gate's
+ * construction (a corroborating second grant, the governing capability
+ * revoked before the read) against this file's own fixtures, as
+ * self-contained stores rather than freshStore()'s shared CAPS array,
+ * so nothing here can perturb T1-T7 above.
+ */
+describe("Revocation and read-time demotion (spec 5.9.3, paper Section 6.3 gate 3)", () => {
+  const PRED = "reservation.status";
+
+  function ownerCap(over: Partial<Capability> = {}): Capability {
+    return {
+      capabilityId: "cap_owner_reservation",
+      issuer: "did:web:home.example",
+      trustDomain: "td_home",
+      principalId: "principal:owner",
+      authorityClass: "ESTABLISHING",
+      predicateScope: [PRED],
+      subjectScope: { match: "prefix", value: "user:emmanuel/" },
+      channelBinding: ["chan:owner-console"],
+      notBefore: new Date("2026-01-01T00:00:00Z"),
+      notAfter: new Date("2027-01-01T00:00:00Z"),
+      revokedAt: null,
+      policyVersion: "pol_v1",
+      ...over,
+    };
+  }
+
+  function airlineCorroboratingCap(): Capability {
+    return {
+      capabilityId: "cap_airline_corroborating",
+      issuer: "did:web:home.example",
+      trustDomain: "td_home",
+      principalId: "principal:airline",
+      authorityClass: "CORROBORATING",
+      predicateScope: [PRED],
+      subjectScope: { match: "prefix", value: "user:emmanuel/" },
+      channelBinding: ["chan:oauth/airline.example"],
+      notBefore: new Date("2026-01-01T00:00:00Z"),
+      notAfter: new Date("2027-01-01T00:00:00Z"),
+      revokedAt: null,
+      policyVersion: "pol_v1",
+    };
+  }
+
+  it("reevaluated mode: revoking the governing capability after the write demotes it to PROPOSING, and resolution changes to whatever remains", () => {
+    const owner = ownerCap();
+    const store = emptyStore([owner, airlineCorroboratingCap()]);
+
+    asAssertion(
+      mint(store, { subject: SUBJ, predicate: PRED, object: "CONFIRMED", validFrom: at(0) }, OWNER, at(0)),
+    );
+    const corroborating = asAssertion(
+      mint(store, { subject: SUBJ, predicate: PRED, object: "DELAYED", validFrom: at(10) }, AIRLINE, at(10)),
+    );
+    expect(corroborating.authority.class).toBe("CORROBORATING");
+
+    // Before revocation: owner's ESTABLISHING write still governs.
+    const before = operative(store, SUBJ, PRED, at(20), { mode: "reevaluated" });
+    expect(before?.value).toBe("CONFIRMED");
+    expect(before?.class).toBe("ESTABLISHING");
+
+    // Revoke the governing capability AFTER the write.
+    owner.revokedAt = at(15);
+
+    const after = operative(store, SUBJ, PRED, at(20), { mode: "reevaluated" });
+    // Demoted to PROPOSING (the least class): the airline's CORROBORATING
+    // claim is now the highest occupied class, so it governs.
+    expect(after?.class).toBe("CORROBORATING");
+    expect(after?.value).toBe("DELAYED");
+    expect(after?.assertionId).toBe(corroborating.assertionId);
+  });
+
+  it("frozen mode: the same revocation does NOT change what governs, because class is fixed at write time", () => {
+    const owner = ownerCap();
+    const store = emptyStore([owner, airlineCorroboratingCap()]);
+
+    const ownerWrite = asAssertion(
+      mint(store, { subject: SUBJ, predicate: PRED, object: "CONFIRMED", validFrom: at(0) }, OWNER, at(0)),
+    );
+    asAssertion(
+      mint(store, { subject: SUBJ, predicate: PRED, object: "DELAYED", validFrom: at(10) }, AIRLINE, at(10)),
+    );
+
+    owner.revokedAt = at(15);
+
+    // No mode option -> defaults to "frozen" (spec 5.9.3).
+    const view = operative(store, SUBJ, PRED, at(20));
+    expect(view?.class).toBe("ESTABLISHING");
+    expect(view?.value).toBe("CONFIRMED");
+    expect(view?.assertionId).toBe(ownerWrite.assertionId);
+  });
+
+  it("reevaluation can only demote, never promote: a PROPOSING write stays PROPOSING even after its writer is granted a matching capability later", () => {
+    const store = emptyStore([ownerCap()]);
+
+    // Airline writes with NO capability over this predicate yet: PROPOSING.
+    const early = asAssertion(
+      mint(store, { subject: SUBJ, predicate: PRED, object: "DELAYED", validFrom: at(0) }, AIRLINE, at(0)),
+    );
+    expect(early.authority.class).toBe("PROPOSING");
+
+    // Before any grant exists, the airline's write is the only claim and
+    // it governs at PROPOSING, reevaluated or not.
+    const beforeGrant = operative(store, SUBJ, PRED, at(10), { mode: "reevaluated" });
+    expect(beforeGrant?.class).toBe("PROPOSING");
+    expect(beforeGrant?.value).toBe("DELAYED");
+
+    // Now widen the airline's grant to cover this predicate, AFTER the
+    // write already happened.
+    store.capabilities.push(airlineCorroboratingCap());
+
+    const afterGrant = operative(store, SUBJ, PRED, at(20), { mode: "reevaluated" });
+    // The early write's class was derived and fixed AT MINT TIME against
+    // the capabilities in force then; re-evaluation re-checks whether
+    // THAT SAME capability (none, originally) still grants it, and can
+    // only lower a class, never raise one past what was minted. The
+    // newly added capability does not retroactively promote this
+    // assertion.
+    expect(afterGrant?.class).toBe("PROPOSING");
+    expect(afterGrant?.value).toBe("DELAYED");
+    expect(afterGrant?.assertionId).toBe(early.assertionId);
+  });
+});

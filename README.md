@@ -62,7 +62,7 @@ The core (`src/authority.ts`) is pure and dependency-free — no transport, no d
 
 ## This is the real, tested core
 
-`src/authority.ts` and `test/acceptance.test.ts` are the same implementation the paper's experiments run against, extracted verbatim with one comment word redacted (the deployment name). The acceptance suite covers grant-ceiling derivation, opacity to the submission payload, and class-then-recency resolution; it does not yet cover revocation or read-time demotion (reevaluated mode):
+`src/authority.ts` and `test/acceptance.test.ts` are the same implementation the paper's experiments run against, extracted verbatim with one comment word redacted (the deployment name). The acceptance suite covers grant-ceiling derivation, opacity to the submission payload, class-then-recency resolution, and revocation with read-time demotion in `reevaluated` mode, including that re-evaluation can only demote, never promote past the class minted at write time:
 
 ```
 npm test
