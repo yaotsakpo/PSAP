@@ -3,13 +3,13 @@
 A self-contained web page that runs the **real** PSAP core client-side.
 You play the adversary, in one of two modes. Every injection is minted
 through the actual `mint()` and resolved through the actual `operative()`
-from `../../src/authority.ts` — no scripted "if spoof then reject".
+from `../../src/authority.ts`, no scripted "if spoof then reject".
 
-- **Stranger** — you hold no capability at all. No wording wins; you can
+- **Stranger**: you hold no capability at all. No wording wins; you can
   only see the spoof succeed by literally checking a "cheat" box that
   simulates holding the verified channel. This tests that message
   content cannot manufacture a channel.
-- **Grant holder** — you hold a genuine capability, `ESTABLISHING` over
+- **Grant holder**: you hold a genuine capability, `ESTABLISHING` over
   `target.confirmed`, on your own authenticated channel. You attack
   `enemy_position` anyway, forging an authority designation inside your
   own submission. This is the attack Section 6.2 of the paper runs: a
